@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <script type="module" crossorigin src="/assets/index-CBRxNEx9.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Dct4RELb.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Suppress WebSocket connection errors for Vite HMR in development
+      const originalConsoleError = console.error;
+      console.error = function(...args) {
+        const message = args.join(' ');
+        if (message.includes('WebSocket') && message.includes('localhost:undefined')) {
+          // Silently ignore WebSocket connection errors with undefined port
+          return;
+        }
+        originalConsoleError.apply(console, args);
+      };
+
+      // Handle unhandled WebSocket connection rejections
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event.reason && event.reason.message && 
+            event.reason.message.includes('WebSocket') && 
+            event.reason.message.includes('localhost:undefined')) {
+          event.preventDefault();
+          return;
+        }
+      });
+    </script>
+    <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
+    <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
+  </body>
+</html>
