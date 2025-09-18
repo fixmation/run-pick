@@ -1,0 +1,368 @@
+import React, { useRef } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Users, Clock, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getDistance } from 'geolib';
+
+// Import vehicle PNG icons
+import tukIcon from "@assets/tuk_1757307864667.png";
+import bikeIcon from "@/assets/vehicles/bike.png";
+import miniIcon from "@/assets/vehicles/mini.png";
+import flexIcon from "@/assets/vehicles/flex.png";
+import carIcon from "@/assets/vehicles/car.png";
+import minivanIcon from "@/assets/vehicles/minivan.png";
+import vanIcon from "@/assets/vehicles/van.png";
+
+interface VehicleType {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  capacity: number;
+  baseFareColumbo: number;
+  baseFareOther: number;
+  pricePerKm: number;
+  estimatedTime: string;
+  available: boolean;
+}
+
+interface Driver {
+  id: number;
+  name: string;
+  rating: number;
+  vehicleType: string;
+  vehicleNumber: string;
+  vehicleColor: string;
+  phone: string;
+  latitude: number;
+  longitude: number;
+  isAvailable: boolean;
+  estimatedArrival: number;
+}
+
+interface VehicleSelectorProps {
+  selectedVehicle: string;
+  onVehicleSelect: (vehicleId: string) => void;
+  distance?: number;
+  estimatedFare?: number;
+  isColumboArea?: boolean;
+  onVehicleAnnounce?: (message: string) => void;
+  nearbyDrivers?: Driver[];
+  userLocation?: { lat: number; lng: number } | null;
+}
+
+const VehicleSelector: React.FC<VehicleSelectorProps> = ({
+  selectedVehicle,
+  onVehicleSelect,
+  distance = 0,
+  estimatedFare = 0,
+  isColumboArea = false,
+  onVehicleAnnounce,
+  nearbyDrivers = [],
+  userLocation = null
+}) => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollLeft = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft -= 200;
+    }
+  };
+
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft += 200;
+    }
+  };
+  const vehicleTypes: VehicleType[] = [
+    {
+      id: 'threewheeler',
+      name: 'Threewheeler',
+      icon: tukIcon,
+      description: 'Perfect for short trips',
+      capacity: 2,
+      baseFareColumbo: 315,
+      baseFareOther: 240,
+      pricePerKm: 80,
+      estimatedTime: 'in 3 mins',
+      available: true
+    },
+    {
+      id: 'bike',
+      name: 'Bike',
+      icon: bikeIcon,
+      description: 'Quick and economical',
+      capacity: 1,
+      baseFareColumbo: 198,
+      baseFareOther: 150,
+      pricePerKm: 80,
+      estimatedTime: 'in 2 mins',
+      available: true
+    },
+    {
+      id: 'mini_car',
+      name: 'Mini Car',
+      icon: miniIcon,
+      description: 'Comfortable for families',
+      capacity: 3,
+      baseFareColumbo: 450,
+      baseFareOther: 370,
+      pricePerKm: 80,
+      estimatedTime: 'in 4 mins',
+      available: true
+    },
+    {
+      id: 'flex_car',
+      name: 'Flex Car',
+      icon: flexIcon,
+      description: 'Flexible seating arrangement',
+      capacity: 3,
+      baseFareColumbo: 400,
+      baseFareOther: 350,
+      pricePerKm: 80,
+      estimatedTime: 'in 5 mins',
+      available: true
+    },
+    {
+      id: 'car',
+      name: 'Car',
+      icon: carIcon,
+      description: 'Standard comfortable car',
+      capacity: 4,
+      baseFareColumbo: 590,
+      baseFareOther: 550,
+      pricePerKm: 80,
+      estimatedTime: 'in 4 mins',
+      available: true
+    },
+    {
+      id: 'mini_van',
+      name: 'Mini Van',
+      icon: minivanIcon,
+      description: 'Perfect for groups (5 passengers)',
+      capacity: 5,
+      baseFareColumbo: 690,
+      baseFareOther: 650,
+      pricePerKm: 80,
+      estimatedTime: 'in 6 mins',
+      available: true
+    },
+    {
+      id: 'van',
+      name: 'Van',
+      icon: vanIcon,
+      description: 'Large capacity (10 passengers)',
+      capacity: 10,
+      baseFareColumbo: 2300,
+      baseFareOther: 2100,
+      pricePerKm: 80,
+      estimatedTime: 'in 7 mins',
+      available: true
+    }
+  ];
+
+  const calculateFare = (vehicle: VehicleType) => {
+    // Complex fare calculation: Base fare for first km + LKR 80/km for additional distance
+    // Base fare depends on Colombo area or other areas
+    const baseFare = isColumboArea ? vehicle.baseFareColumbo : vehicle.baseFareOther;
+    
+    if (distance <= 1) {
+      // For distances 1km or less, just charge the base fare
+      return Math.round(baseFare);
+    } else {
+      // Base fare for first km + LKR 80/km for additional distance
+      const additionalDistance = distance - 1;
+      return Math.round(baseFare + (additionalDistance * vehicle.pricePerKm));
+    }
+  };
+
+  const getVehicleETA = (vehicleType: VehicleType) => {
+    // If no location or drivers available, return fallback time
+    if (!userLocation || !nearbyDrivers || nearbyDrivers.length === 0) {
+      return vehicleType.estimatedTime; // Use hardcoded fallback
+    }
+
+    // Map vehicle types to driver vehicle types
+    const vehicleTypeMapping: Record<string, string[]> = {
+      'threewheeler': ['threewheeler', 'tuk-tuk', 'tuktuk'],
+      'bike': ['bike', 'motorcycle'],
+      'mini_car': ['mini', 'mini-car', 'car'],
+      'flex_car': ['flex', 'flex-car', 'car'],
+      'car': ['car', 'sedan'],
+      'mini_van': ['mini-van', 'minivan', 'van'],
+      'van': ['van', 'large-van']
+    };
+
+    // Find available drivers for this vehicle type
+    const relevantDrivers = nearbyDrivers.filter(driver => 
+      driver.isAvailable && vehicleTypeMapping[vehicleType.id]?.some(type => 
+        driver.vehicleType.toLowerCase().includes(type.toLowerCase())
+      )
+    );
+
+    if (relevantDrivers.length === 0) {
+      return 'Not available'; // No drivers available for this vehicle type
+    }
+
+    // Find the closest driver
+    let closestDriver = null;
+    let shortestDistance = Infinity;
+
+    for (const driver of relevantDrivers) {
+      const distanceMeters = getDistance(
+        { latitude: userLocation.lat, longitude: userLocation.lng },
+        { latitude: driver.latitude, longitude: driver.longitude }
+      );
+      
+      if (distanceMeters < shortestDistance) {
+        shortestDistance = distanceMeters;
+        closestDriver = driver;
+      }
+    }
+
+    if (!closestDriver) {
+      return vehicleType.estimatedTime; // Fallback
+    }
+
+    // Use driver's estimatedArrival if available, otherwise calculate based on distance
+    if (closestDriver.estimatedArrival) {
+      return `in ${closestDriver.estimatedArrival} min`;
+    }
+
+    // Calculate ETA based on distance (assuming average speed of 30 km/h in city)
+    const distanceKm = shortestDistance / 1000;
+    const estimatedMinutes = Math.max(1, Math.round((distanceKm / 30) * 60));
+    
+    return `in ${estimatedMinutes} min`;
+  };
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-center">Choose Vehicle Type</h3>
+      
+      <div className="relative">
+        {/* Left scroll arrow */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-white shadow-md"
+          onClick={scrollLeft}
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
+        
+        {/* Right scroll arrow */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-white shadow-md"
+          onClick={scrollRight}
+        >
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+        
+        <div 
+          ref={scrollContainerRef}
+          className="flex overflow-x-auto space-x-3 pb-2 px-10 scroll-smooth"
+          style={{ 
+            scrollbarWidth: 'thin', 
+            msOverflowStyle: 'auto',
+            scrollbarColor: '#d1d5db #f3f4f6'
+          }}
+        >
+        {vehicleTypes.map((vehicle) => (
+          <Card
+            key={vehicle.id}
+            className={`cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex-shrink-0 w-40 ${
+              selectedVehicle === vehicle.id
+                ? 'ring-2 ring-orange-600 bg-orange-600 border-orange-600 border-2 text-white'
+                : 'bg-[#ffac76] hover:bg-[#ffac76]/80 border border-[#ffac76]/50'
+            } ${!vehicle.available ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => {
+              if (vehicle.available) {
+                onVehicleSelect(vehicle.id);
+                onVehicleAnnounce?.(`Selected ${vehicle.name}, capacity ${vehicle.capacity} passengers, fare LKR ${calculateFare(vehicle)}`);
+              }
+            }}
+            onKeyDown={(e) => {
+              if ((e.key === 'Enter' || e.key === ' ') && vehicle.available) {
+                e.preventDefault();
+                onVehicleSelect(vehicle.id);
+                onVehicleAnnounce?.(`Selected ${vehicle.name}, capacity ${vehicle.capacity} passengers, fare LKR ${calculateFare(vehicle)}`);
+              }
+            }}
+            tabIndex={0}
+            role="button"
+            aria-pressed={selectedVehicle === vehicle.id}
+            aria-label={`${vehicle.name}, ${vehicle.description}, ${vehicle.capacity} passengers, ${vehicle.available ? `LKR ${calculateFare(vehicle)}` : 'unavailable'}`}
+            aria-describedby={`vehicle-${vehicle.id}-details`}
+          >
+            <CardContent className="p-3">
+              <div id={`vehicle-${vehicle.id}-details`} className="flex flex-col items-center text-center space-y-3">
+                {/* Vehicle Image */}
+                <div className="w-32 h-20 flex items-center justify-center bg-amber-100/50 rounded-lg border-2 border-transparent hover:border-amber-300 transition-all">
+                  <img 
+                    src={vehicle.icon} 
+                    alt={vehicle.name}
+                    className="w-28 h-16 object-contain"
+                  />
+                </div>
+                
+                {/* Vehicle Name & Status */}
+                <div className="w-full">
+                  <div className="flex items-center justify-center space-x-2 mb-1">
+                    <h4 className="font-medium text-sm">{vehicle.name}</h4>
+                    {!vehicle.available && (
+                      <Badge variant="secondary" className="text-xs">
+                        Unavailable
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {/* Vehicle Description */}
+                  <p className={`text-xs mb-2 ${selectedVehicle === vehicle.id ? 'text-white' : 'text-gray-700'}`}>{vehicle.description}</p>
+                  
+                  {/* Seat Count */}
+                  <div className={`flex items-center justify-center space-x-1 text-xs mb-1 ${selectedVehicle === vehicle.id ? 'text-white' : 'text-gray-600'}`}>
+                    <Users className="w-3 h-3" />
+                    <span>{vehicle.capacity} seats</span>
+                  </div>
+                  
+                  {/* ETA */}
+                  <div className={`flex items-center justify-center space-x-1 text-xs mb-2 ${selectedVehicle === vehicle.id ? 'text-white' : 'text-gray-600'}`}>
+                    <Clock className="w-3 h-3" />
+                    <span>{getVehicleETA(vehicle)}</span>
+                  </div>
+                  
+                  {/* Fare */}
+                  <div className="border-t border-amber-200/50 pt-2">
+                    <div className={`text-sm font-semibold ${selectedVehicle === vehicle.id ? 'text-white' : 'text-gray-800'}`}>
+                      LKR {calculateFare(vehicle)}
+                    </div>
+                    <div className={`text-xs ${selectedVehicle === vehicle.id ? 'text-white/80' : 'text-gray-600'}`}>
+                      {distance > 0 ? `${distance} km` : 'Est. fare'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        </div>
+      </div>
+
+      <div className="mt-4 p-3 bg-orange-50 rounded-lg">
+        <div className="flex items-center space-x-2 text-sm text-orange-800">
+          <Star className="w-4 h-4" />
+          <span>
+            {isColumboArea ? 'Colombo area rates' : 'Outside Colombo rates'} - 
+            Base fare for 1st km + LKR 80/km additional distance
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default VehicleSelector;
