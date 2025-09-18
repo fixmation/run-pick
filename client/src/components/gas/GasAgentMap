@@ -1,0 +1,249 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { MapPin, Flame, Package, Phone, Clock, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import MapboxHybridMap from '@/components/maps/MapboxHybridMap';
+
+interface GasAgent {
+  id: number;
+  businessName: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  phone?: string;
+  rating?: number;
+  isVerified: boolean;
+  distance?: number;
+  businessType: string;
+}
+
+interface GasAgentMapProps {
+  onGasAgentSelect?: (agent: GasAgent) => void;
+  selectedGasAgent?: GasAgent | null;
+  height?: string;
+}
+
+const GasAgentMap: React.FC<GasAgentMapProps> = ({
+  onGasAgentSelect,
+  selectedGasAgent,
+  height = "400px"
+}) => {
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [gasAgents, setGasAgents] = useState<GasAgent[]>([]);
+
+  // Mock gas agents data - In real implementation, this would come from API
+  const mockGasAgents: GasAgent[] = [
+    {
+      id: 1,
+      businessName: "Lanka Gas Center",
+      address: "123 Main St, Colombo 07",
+      latitude: 6.9167,
+      longitude: 79.8448,
+      phone: "+94 71 234 5678",
+      rating: 4.5,
+      isVerified: true,
+      distance: 2.3,
+      businessType: "gas_agent"
+    },
+    {
+      id: 2,
+      businessName: "Quick Gas Delivery",
+      address: "45 Galle Road, Colombo 03",
+      latitude: 6.9095,
+      longitude: 79.8445,
+      phone: "+94 77 987 6543",
+      rating: 4.2,
+      isVerified: true,
+      distance: 3.1,
+      businessType: "gas_agent"
+    },
+    {
+      id: 3,
+      businessName: "City Gas Service",
+      address: "78 Kandy Road, Colombo 05",
+      latitude: 6.9271,
+      longitude: 79.8612,
+      phone: "+94 70 555 1234",
+      rating: 4.7,
+      isVerified: true,
+      distance: 1.8,
+      businessType: "gas_agent"
+    },
+    {
+      id: 4,
+      businessName: "Home Gas Solutions",
+      address: "89 Baseline Road, Colombo 09",
+      latitude: 6.8905,
+      longitude: 79.8587,
+      phone: "+94 76 444 7890",
+      rating: 4.3,
+      isVerified: true,
+      distance: 4.2,
+      businessType: "gas_agent"
+    },
+    {
+      id: 5,
+      businessName: "Express Gas Lanka",
+      address: "156 High Level Road, Colombo 06",
+      latitude: 6.8847,
+      longitude: 79.8753,
+      phone: "+94 72 333 9876",
+      rating: 4.6,
+      isVerified: true,
+      distance: 5.1,
+      businessType: "gas_agent"
+    }
+  ];
+
+  useEffect(() => {
+    // Get user's current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setCurrentLocation(location);
+        },
+        (error) => {
+          console.log('Location access denied, using default location');
+          setCurrentLocation({ lat: 6.9271, lng: 79.8612 });
+        }
+      );
+    } else {
+      setCurrentLocation({ lat: 6.9271, lng: 79.8612 });
+    }
+
+    // Load mock gas agents
+    setGasAgents(mockGasAgents);
+  }, []);
+
+  // Convert gas agents to driver format for MapComponent
+  const driversData = gasAgents.map(agent => ({
+    id: agent.id,
+    name: agent.businessName,
+    latitude: agent.latitude,
+    longitude: agent.longitude,
+    vehicleType: 'gas_delivery',
+    rating: agent.rating || 4.0,
+    isAvailable: true,
+    phone: agent.phone,
+    distance: agent.distance
+  }));
+
+  const handleDriverSelect = (driver: any) => {
+    const gasAgent = gasAgents.find(agent => agent.id === driver.id);
+    if (gasAgent && onGasAgentSelect) {
+      onGasAgentSelect(gasAgent);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <MapboxHybridMap
+        center={currentLocation ? [currentLocation.lng, currentLocation.lat] : [79.8612, 6.9271]}
+        markers={[
+          // Add gas agents as vendor markers
+          ...gasAgents.map(agent => ({
+            id: `gas-agent-${agent.id}`,
+            lat: agent.latitude,
+            lng: agent.longitude,
+            type: 'vendor' as const,
+            title: agent.businessName
+          })),
+          // Add customer location
+          ...(currentLocation ? [{
+            id: 'customer',
+            lat: currentLocation.lat,
+            lng: currentLocation.lng,
+            type: 'customer' as const,
+            title: 'Your Location'
+          }] : [])
+        ]}
+        className={`w-full`}
+        // Note: Height is passed via prop but we'll use a fixed height for now
+        // TODO: Implement dynamic height support in MapboxHybridMap component
+        onMapClick={(latlng) => {
+          // Find nearest gas agent when clicking on map
+          const distances = gasAgents.map(agent => ({
+            agent,
+            distance: Math.sqrt(
+              Math.pow(agent.latitude - latlng.lat, 2) + 
+              Math.pow(agent.longitude - latlng.lng, 2)
+            )
+          }));
+          const nearest = distances.sort((a, b) => a.distance - b.distance)[0];
+          if (nearest && nearest.distance < 0.01 && onGasAgentSelect) { // Within ~1km
+            onGasAgentSelect(nearest.agent);
+          }
+        }}
+      />
+      
+      {/* Selected Gas Agent Info Panel */}
+      {selectedGasAgent && (
+        <div className="bg-white rounded-lg shadow-lg p-4 border">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Flame className="w-5 h-5 text-orange-500" />
+                <h3 className="font-semibold text-lg">{selectedGasAgent.businessName}</h3>
+                {selectedGasAgent.isVerified && (
+                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                    ✓ Verified
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 mb-3 flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                {selectedGasAgent.address}
+              </p>
+              <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
+                {selectedGasAgent.rating && (
+                  <div className="flex items-center gap-1">
+                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                    <span className="font-medium">{selectedGasAgent.rating}</span>
+                  </div>
+                )}
+                {selectedGasAgent.distance && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    <span>{selectedGasAgent.distance}km away</span>
+                  </div>
+                )}
+                {selectedGasAgent.phone && (
+                  <div className="flex items-center gap-1">
+                    <Phone className="w-4 h-4" />
+                    <span>{selectedGasAgent.phone}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                  onClick={() => onGasAgentSelect?.(selectedGasAgent)}
+                >
+                  <Flame className="w-4 h-4 mr-2" />
+                  Order Gas Cylinder
+                </Button>
+                {selectedGasAgent.phone && (
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => window.open(`tel:${selectedGasAgent.phone}`)}
+                  >
+                    <Phone className="w-4 h-4 mr-2" />
+                    Call Now
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default GasAgentMap;
